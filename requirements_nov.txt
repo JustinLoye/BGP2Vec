@@ -146,7 +146,8 @@ pyasn1-modules
 pycodestyle
 pycosat
 pycparser
-pycrypto
+# pycrypto
+pycryptodome
 pycurl
 pydot
 pyemd
