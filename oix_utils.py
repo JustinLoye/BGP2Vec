@@ -1,7 +1,10 @@
+import csv
+import json
 import logging
 from collections import defaultdict
 import bz2
 from gensim.models.doc2vec import TaggedDocument
+import numpy as np
 
 
 def remove_duplicates(route):
@@ -338,6 +341,17 @@ def generate_tagged_routes_from_dict_routes(dict_routes):
 
     logging.info("Generated tagged_routes from dict_routes")
     return tagged_routes
+
+def load_routes(filepath: str):
+    paths_list = []
+    with open(filepath, newline="") as f:
+        reader = csv.reader(f, quoting=csv.QUOTE_MINIMAL)
+        for paths_str, blk in reader:
+            # parse the JSON array of AS‑paths back into a Python list
+            paths = json.loads(paths_str)
+            paths_list.append(paths)
+
+        return np.array(paths_list, dtype=object)
 
 
 # def generate_diff_same_tagged_routes_from_oix(cur_oix_path, prev_oix_path, dt=None, remove_dup=False, remove_first=False, mode=None, test_limit=None, asn_list=None, ap_list=None):

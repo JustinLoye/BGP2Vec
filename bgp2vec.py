@@ -1,17 +1,27 @@
+import sys
 from gensim.models import Word2Vec
 import multiprocessing
 import logging
 import os
 import numpy as np
 import random
+from oix_utils import get_routes_from_oix, load_routes
+import csv
+import json
+
 random.seed(7)
 
-from oix_utils import *
+# try:
+#     print('PYTHONHASHSEED', os.environ['PYTHONHASHSEED'])
+# except:
+#     print("Warning! PYTHONHASHSEED is not defined")
 
-try:
-    print('PYTHONHASHSEED', os.environ['PYTHONHASHSEED'])
-except:
-    print("Warning! PYTHONHASHSEED is not defined")
+seed = os.getenv("PYTHONHASHSEED")
+if seed is None:
+    print("Warning: PYTHONHASHSEED is not defined")
+else:
+    print("PYTHONHASHSEED =", seed)
+
 
 # Note that for a fully deterministically-reproducible run, you must also limit the model to a single worker thread (workers=1), to eliminate ordering jitter from OS thread scheduling.
 
@@ -26,22 +36,38 @@ class BGP2VEC:
         self.word_fq_dict = word_fq_dict
 
         if rewrite or not self.import_model():
+            # Author laoding
             logging.info(("Start generating BGP2VEC model for ", oix_path))
-            self.routes = get_routes_from_oix(oix_path, by_vantage=False, mode=mode, test_limit=test_limit,
-                                              asn_list=asn_list, ap_list=ap_list)
-            if shuffle:
-                random.shuffle(self.tagged_routes)
+            # self.routes = get_routes_from_oix(oix_path, by_vantage=False, mode=mode, test_limit=test_limit,
+            #                                   asn_list=asn_list, ap_list=ap_list)
+            
+            self.routes = load_routes(oix_path)
+            
+        
+            
+            # if shuffle:
+            #     random.shuffle(self.tagged_routes)
             self.build_model(embedding_size, window, negative, epochs)
             self.export_model()
 
     def build_model(self, embedding_size, window, negative, epochs):
-        self.model = Word2Vec(size=embedding_size, min_count=1, window=window, sg=1, hs=0, negative=negative,
-                              workers=1, iter=1, seed=7)
+        self.model = Word2Vec(
+            vector_size=embedding_size,
+            min_count=1,
+            window=window,
+            sg=1,
+            hs=0,
+            negative=negative,
+            workers=1,
+            epochs=1,
+            seed=7,
+        )
         if self.word_fq_dict:
             self.model.build_vocab_from_freq(self.word_fq_dict)
         else:
             self.model.build_vocab(self.routes, progress_per=1000000)
-        logging.info(("Vocabulary size:", len(self.model.wv.vocab)))
+        vocab_size = len(self.model.wv)  # or len(self.model.wv.key_to_index)
+        logging.info(f"Vocabulary size: {vocab_size}")
 
         logging.info("Start training model")
         self.model.train(self.routes, total_examples=len(self.routes), epochs=epochs, report_delay=30)
@@ -86,3 +112,18 @@ class BGP2VEC:
             asns_vec[i, :] = self.asn2vec(asn)
 
         return asns_vec
+    
+logger = logging.getLogger(__name__)
+    
+if __name__ == "__main__":
+    logger.info("Started")
+    FORMAT = "%(asctime)s %(levelname)s %(message)s"
+    logging.basicConfig(
+        handlers=[logging.FileHandler("bgp2vec.log"), logging.StreamHandler(sys.stdout)],
+        level=logging.DEBUG,
+        format=FORMAT,
+        datefmt="%Y-%m-%d %H:%M:%S",
+        encoding="utf-8",
+    )
+    bgp2vec = BGP2VEC(model_path="Models/test.word2vec", oix_path="./Previous Methods/big_conf_paths.csv", rewrite=True)
+    logger.info("Finished")
